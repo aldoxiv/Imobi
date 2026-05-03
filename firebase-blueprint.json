@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "Property": {
+      "title": "Property",
+      "description": "A real estate property listing",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
+        "category": { "type": "string", "enum": ["buy", "rent"] },
+        "type": { "type": "string", "enum": ["house", "apartment", "land", "commercial"] },
+        "bedrooms": { "type": "number" },
+        "bathrooms": { "type": "number" },
+        "sqft": { "type": "number" },
+        "address": { "type": "object" },
+        "images": { "type": "array" },
+        "features": { "type": "array" },
+        "agentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "sold", "rented"] }
+      },
+      "required": ["title", "price", "category", "agentId", "status"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Application user profile",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["client", "agent", "admin"] },
+        "favorites": { "type": "array" }
+      },
+      "required": ["email", "role"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Customer inquiry for a property",
+      "type": "object",
+      "properties": {
+        "propertyId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "agentId": { "type": "string" },
+        "message": { "type": "string" },
+        "phone": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["new", "contacted", "closed"] },
+        "aiSummary": { "type": "object" }
+      },
+      "required": ["propertyId", "userId", "agentId", "message", "userName", "userEmail"]
+    }
+  },
+  "firestore": {
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Collection of property listings"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Collection of lead inquiries"
+    }
+  }
+}

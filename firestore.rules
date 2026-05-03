@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- 0. Global Safety Net ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- 1. Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Admin check: checks for aldo14.snt@gmail.com as a bootstrapped admin
+    function isAdmin() {
+      return isSignedIn() && (request.auth.token.email == 'aldo14.snt@gmail.com' && isEmailVerified());
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- 2. User Profiles ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['displayName', 'email', 'photoURL', 'role', 'favorites'])
+        && data.keys().size() == 5
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
+        && (data.email is string && data.email.size() <= 100)
+        && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.role in ['client', 'agent', 'admin']
+        && data.favorites is list && data.favorites.size() <= 100;
+    }
+
+    match /users/{userId} {
+      allow get: if (isValidId(userId) && isOwner(userId)) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'client';
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) 
+                    && isValidUser(incoming())
+                    && (isAdmin() || incoming().role == existing().role)
+                    && (isAdmin() || incoming().email == existing().email)
+                    && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'favorites', 'role']));
+    }
+
+    // --- 3. Properties ---
+    function isValidProperty(data) {
+      return data.keys().hasAll(['title', 'description', 'price', 'currency', 'category', 'type', 'bedrooms', 'bathrooms', 'sqft', 'address', 'images', 'features', 'agentId', 'status', 'createdAt'])
+        && data.keys().size() == 15
+        && data.title is string && data.title.size() <= 200
+        && data.description is string && data.description.size() <= 2000
+        && data.price is number && data.price >= 0
+        && data.currency is string && data.currency.size() <= 5
+        && data.category in ['buy', 'rent']
+        && data.type in ['house', 'apartment', 'land', 'commercial']
+        && data.bedrooms is number && data.bathrooms is number && data.sqft is number
+        && data.address is map
+        && data.images is list && data.images.size() <= 10
+        && data.features is list && data.features.size() <= 20
+        && data.agentId is string && isValidId(data.agentId)
+        && data.status in ['active', 'sold', 'rented']
+        && data.createdAt is timestamp;
+    }
+
+    match /properties/{propertyId} {
+      // Secure List Queries (Pillar 8) - No get() inside list
+      allow list: if resource.data.status == 'active' || (isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin()));
+      allow get: if isValidId(propertyId) && (resource.data.status == 'active' || (isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin())));
+      
+      allow create: if isSignedIn() && isEmailVerified()
+                    && isValidProperty(incoming())
+                    && incoming().agentId == request.auth.uid
+                    && incoming().createdAt == request.time;
+      
+      allow update: if isValidId(propertyId) && (isSignedIn() && (existing().agentId == request.auth.uid || isAdmin()))
+                    && isValidProperty(incoming())
+                    && (isAdmin() || incoming().agentId == existing().agentId)
+                    && (isAdmin() || incoming().createdAt == existing().createdAt)
+                    && (isAdmin() || (
+                      // Action: Edit
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'category', 'type', 'bedrooms', 'bathrooms', 'sqft', 'address', 'images', 'features', 'status'])
+                    ));
+      
+      allow delete: if isValidId(propertyId) && (isSignedIn() && (existing().agentId == request.auth.uid || isAdmin()));
+    }
+
+    // --- 4. Inquiries ---
+    function isValidInquiry(data) {
+      return data.keys().hasAll(['propertyId', 'userId', 'agentId', 'message', 'phone', 'timestamp', 'status', 'userName', 'userEmail'])
+        && data.keys().size() >= 9 && data.keys().size() <= 10
+        && isValidId(data.propertyId)
+        && isValidId(data.userId)
+        && isValidId(data.agentId)
+        && data.message is string && data.message.size() <= 2000
+        && data.phone is string && data.phone.size() <= 20
+        && (data.userName is string && data.userName.size() <= 150)
+        && (data.userEmail is string && data.userEmail.size() <= 150)
+        && data.timestamp is timestamp
+        && data.status in ['new', 'contacted', 'closed']
+        && (!data.keys().hasAll(['aiSummary']) || data.aiSummary is map);
+    }
+
+    match /inquiries/{inquiryId} {
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow get: if isValidId(inquiryId) && isSignedIn() && (existing().userId == request.auth.uid || existing().agentId == request.auth.uid || isAdmin());
+      
+      allow create: if isValidId(inquiryId) && isSignedIn() && isEmailVerified()
+                    && isValidInquiry(incoming())
+                    && incoming().userId == request.auth.uid
+                    && incoming().timestamp == request.time
+                    && incoming().status == 'new'
+                    && exists(/databases/$(database)/documents/properties/$(incoming().propertyId));
+
+      allow update: if isValidId(inquiryId) && (isOwner(existing().userId) || isOwner(existing().agentId) || isAdmin())
+                    && isValidInquiry(incoming())
+                    && (isAdmin() || (
+                      incoming().userId == existing().userId
+                      && incoming().agentId == existing().agentId
+                      && incoming().propertyId == existing().propertyId
+                      && (
+                        // Agent Action: Update Status
+                        (isOwner(existing().agentId) && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+                        // User Action: Update AI Summary
+                        (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['aiSummary']))
+                      )
+                    ));
+      
+      allow delete: if isValidId(inquiryId) && isAdmin();
+    }
+  }
+}
