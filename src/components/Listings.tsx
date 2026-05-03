@@ -6,7 +6,7 @@ import { PropertyDetails } from './PropertyDetails';
 import { useAuth } from '../lib/AuthContext';
 import { Search, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
 export function Listings() {
@@ -16,6 +16,11 @@ export function Listings() {
   const [type, setType] = useState<PropertyType | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [minBedrooms, setMinBedrooms] = useState<number | 'all'>('all');
+  const [minBathrooms, setMinBathrooms] = useState<number | 'all'>('all');
   const { profile } = useAuth();
 
   useEffect(() => {
@@ -52,14 +57,21 @@ export function Listings() {
     }
   };
 
-  const filteredProperties = properties.filter(p => 
-    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.address.city.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProperties = properties.filter(p => {
+    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         p.address.city.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesMinPrice = minPrice === '' || p.price >= parseFloat(minPrice);
+    const matchesMaxPrice = maxPrice === '' || p.price <= parseFloat(maxPrice);
+    const matchesBedrooms = minBedrooms === 'all' || p.bedrooms >= minBedrooms;
+    const matchesBathrooms = minBathrooms === 'all' || p.bathrooms >= minBathrooms;
+
+    return matchesSearch && matchesMinPrice && matchesMaxPrice && matchesBedrooms && matchesBathrooms;
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
-      <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="max-w-xl">
           <h2 className="serif text-5xl font-light mb-4">Descubra Seu Novo Refúgio</h2>
           <p className="text-[#8E8E8E] leading-relaxed">
@@ -69,38 +81,135 @@ export function Listings() {
         
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8E8E]" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1A1A1A]/40" size={18} />
             <input 
               type="text" 
-              placeholder="Ex: São Paulo, Casa Luxo..."
-              className="pl-10 pr-4 py-2.5 bg-white border border-[#E5E1DA] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#5A5A40] transition-all w-64"
+              placeholder="Localização ou Título..."
+              className="pl-10 pr-4 py-3 bg-white border border-[#E5E1DA] rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-[#1A1A1A] transition-all w-64 shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           
-          <div className="flex bg-white border border-[#E5E1DA] rounded-lg p-1">
+          <div className="flex bg-white border border-[#E5E1DA] rounded-full p-1 shadow-sm">
             <button 
               onClick={() => setCategory('all')}
-              className={cn("px-4 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all", category === 'all' ? "bg-[#1A1A1A] text-white" : "text-[#8E8E8E] hover:text-[#1A1A1A]")}
+              className={cn("px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all", category === 'all' ? "bg-[#1A1A1A] text-white" : "text-[#8E8E8E] hover:text-[#1A1A1A]")}
             >
               Todos
             </button>
             <button 
               onClick={() => setCategory('buy')}
-              className={cn("px-4 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all", category === 'buy' ? "bg-[#1A1A1A] text-white" : "text-[#8E8E8E] hover:text-[#1A1A1A]")}
+              className={cn("px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all", category === 'buy' ? "bg-[#1A1A1A] text-white" : "text-[#8E8E8E] hover:text-[#1A1A1A]")}
             >
               Venda
             </button>
             <button 
               onClick={() => setCategory('rent')}
-              className={cn("px-4 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-all", category === 'rent' ? "bg-[#1A1A1A] text-white" : "text-[#8E8E8E] hover:text-[#1A1A1A]")}
+              className={cn("px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all", category === 'rent' ? "bg-[#1A1A1A] text-white" : "text-[#8E8E8E] hover:text-[#1A1A1A]")}
             >
               Aluguel
             </button>
           </div>
+
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              "flex items-center gap-2 px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all shadow-sm",
+              showFilters ? "bg-[#1A1A1A] text-white border-[#1A1A1A]" : "bg-white text-[#1A1A1A] border-[#E5E1DA] hover:border-[#1A1A1A]"
+            )}
+          >
+            <SlidersHorizontal size={14} />
+            Filtros
+          </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mb-12"
+          >
+            <div className="p-8 bg-white border border-[#E5E1DA] rounded-[2rem] shadow-sm grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div className="space-y-4">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E8E8E]">Faixa de Preço (BRL)</label>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="number" 
+                    placeholder="Min"
+                    className="w-full px-4 py-3 bg-[#F5F2ED] border-none rounded-xl text-sm focus:ring-1 focus:ring-[#1A1A1A] outline-none"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                  />
+                  <div className="w-4 h-[1px] bg-[#E5E1DA]"></div>
+                  <input 
+                    type="number" 
+                    placeholder="Max"
+                    className="w-full px-4 py-3 bg-[#F5F2ED] border-none rounded-xl text-sm focus:ring-1 focus:ring-[#1A1A1A] outline-none"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E8E8E]">Dormitórios</label>
+                <div className="flex bg-[#F5F2ED] p-1 rounded-xl">
+                  {['all', 1, 2, 3, 4].map((n) => (
+                    <button
+                      key={`bed-${n}`}
+                      onClick={() => setMinBedrooms(n as any)}
+                      className={cn(
+                        "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                        minBedrooms === n ? "bg-white text-[#1A1A1A] shadow-sm" : "text-[#8E8E8E] hover:text-[#1A1A1A]"
+                      )}
+                    >
+                      {n === 'all' ? 'Todos' : `${n}+`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E8E8E]">Banheiros</label>
+                <div className="flex bg-[#F5F2ED] p-1 rounded-xl">
+                  {['all', 1, 2, 3, 4].map((n) => (
+                    <button
+                      key={`bath-${n}`}
+                      onClick={() => setMinBathrooms(n as any)}
+                      className={cn(
+                        "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                        minBathrooms === n ? "bg-white text-[#1A1A1A] shadow-sm" : "text-[#8E8E8E] hover:text-[#1A1A1A]"
+                      )}
+                    >
+                      {n === 'all' ? 'Todos' : `${n}+`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-end">
+                <button 
+                  onClick={() => {
+                    setMinPrice('');
+                    setMaxPrice('');
+                    setMinBedrooms('all');
+                    setMinBathrooms('all');
+                    setSearchTerm('');
+                    setCategory('all');
+                  }}
+                  className="w-full py-3 text-[10px] font-bold uppercase tracking-widest text-[#1A1A1A] border-b border-[#1A1A1A] hover:opacity-60 transition-all text-center mb-1"
+                >
+                  Limpar Filtros
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 opacity-40">
