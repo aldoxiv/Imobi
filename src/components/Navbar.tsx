@@ -1,15 +1,21 @@
 import React from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { LogIn, LogOut, Heart, User, Home } from 'lucide-react';
+import { LogIn, LogOut, Heart, User, Home, Users } from 'lucide-react';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 
-export function Navbar() {
+interface NavbarProps {
+  currentView: 'listings' | 'clients';
+  setCurrentView: (view: 'listings' | 'clients') => void;
+}
+
+export function Navbar({ currentView, setCurrentView }: NavbarProps) {
   const { user, profile, signIn, signOut } = useAuth();
 
   return (
     <nav className="sticky top-0 z-50 bg-[#F5F2ED]/80 backdrop-blur-md border-b border-[#E5E1DA]">
       <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentView('listings')}>
           <div className="w-10 h-10 bg-[#1A1A1A] rounded-full flex items-center justify-center text-[#F5F2ED]">
             <Home size={20} />
           </div>
@@ -17,10 +23,20 @@ export function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest text-[#8E8E8E]">
-          <a href="#" className="text-[#1A1A1A] hover:text-[#5A5A40] transition-colors">Início</a>
-          <a href="#" className="hover:text-[#1A1A1A] transition-colors">Comprar</a>
-          <a href="#" className="hover:text-[#1A1A1A] transition-colors">Alugar</a>
-          <a href="#" className="hover:text-[#1A1A1A] transition-colors">Vender</a>
+          <button 
+            onClick={() => setCurrentView('listings')}
+            className={cn("transition-colors uppercase tracking-widest", currentView === 'listings' ? "text-[#1A1A1A]" : "hover:text-[#1A1A1A]")}
+          >
+            Imóveis
+          </button>
+          {profile?.role === 'agent' && (
+            <button 
+              onClick={() => setCurrentView('clients')}
+              className={cn("transition-colors uppercase tracking-widest flex items-center gap-2", currentView === 'clients' ? "text-[#1A1A1A]" : "hover:text-[#1A1A1A]")}
+            >
+              <Users size={14} /> Clientes
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-4">

@@ -53,6 +53,22 @@
         "aiSummary": { "type": "object" }
       },
       "required": ["propertyId", "userId", "agentId", "message", "userName", "userEmail"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "A real estate client managed by an agent",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "notes": { "type": "string" },
+        "agentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "agentId"]
     }
   },
   "firestore": {
@@ -67,6 +83,10 @@
     "/inquiries/{inquiryId}": {
       "schema": "Inquiry",
       "description": "Collection of lead inquiries"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Collection of agent-managed clients"
     }
   }
 }

@@ -142,5 +142,40 @@ service cloud.firestore {
       
       allow delete: if isValidId(inquiryId) && isAdmin();
     }
+
+    // --- 5. Clients ---
+    function isValidClient(data) {
+      return data.keys().hasAll(['name', 'email', 'phone', 'address', 'notes', 'agentId', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 8
+        && data.name is string && data.name.size() <= 200
+        && data.email is string && data.email.size() <= 100
+        && data.phone is string && data.phone.size() <= 30
+        && data.address is string && data.address.size() <= 500
+        && data.notes is string && data.notes.size() <= 5000
+        && data.agentId is string && isValidId(data.agentId)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /clients/{clientId} {
+      allow list: if isSignedIn() && (resource.data.agentId == request.auth.uid || isAdmin());
+      allow get: if isValidId(clientId) && isSignedIn() && (existing().agentId == request.auth.uid || isAdmin());
+      
+      allow create: if isValidId(clientId) && isSignedIn() && isEmailVerified()
+                    && isValidClient(incoming())
+                    && incoming().agentId == request.auth.uid
+                    && incoming().createdAt == request.time
+                    && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(clientId) && (isSignedIn() && (existing().agentId == request.auth.uid || isAdmin()))
+                    && isValidClient(incoming())
+                    && (isAdmin() || (
+                      incoming().agentId == existing().agentId
+                      && incoming().createdAt == existing().createdAt
+                      && incoming().updatedAt == request.time
+                    ));
+      
+      allow delete: if isValidId(clientId) && (isSignedIn() && (existing().agentId == request.auth.uid || isAdmin()));
+    }
   }
 }
